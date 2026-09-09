@@ -156,7 +156,7 @@ class PaymentService
         } catch (Exception $e) {
             DB::rollBack();
             Log::error('Withdrawal failed', ['error' => $e->getMessage()]);
-            throw new NotifyErrorException(__('Withdrawal processing failed. Please try again.'));
+            throw new NotifyErrorException($e->getMessage());
         }
     }
 
