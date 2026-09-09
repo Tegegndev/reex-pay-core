@@ -36,6 +36,10 @@
 
                         </div>
 
+                        <div id="mobile-money-credentials">
+
+                        </div>
+
                         <div class="single-input-inner style-border mb-0 mt-3">
                             <label class="form-label">{{ __('Deposit Money') }}</label>
                             <div class="input-group input-group-right">

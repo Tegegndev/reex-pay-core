@@ -102,7 +102,7 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
 
         // Check if user has a phone number
         $user = auth()->user();
-        $userPhone = request('credentials.phone_number') ?? request('phone') ?? $user?->phone;
+        $userPhone = request('phone_number') ?? request('credentials.phone_number') ?? request('phone') ?? $user?->phone;
         $formattedPhone = $this->formatPhone($userPhone, $country);
 
         // Map transaction in cache for reference lookup

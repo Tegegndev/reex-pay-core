@@ -31,6 +31,7 @@ class DepositController extends Controller
             'wallet_id'      => 'required|exists:wallets,id',
             'payment_method' => 'required|exists:deposit_methods,id',
             'amount'         => 'required|numeric|min:0.01',
+            'phone_number'   => 'nullable|string',
         ]);
 
         try {
