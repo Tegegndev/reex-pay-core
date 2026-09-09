@@ -92,6 +92,7 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
 
     /**
      * Initiate a deposit via MarzPay.
+     * Supports both direct Mobile Money prompt and Hosted Payment Link checkout with Sandbox auto-detection.
      */
     public function deposit($amount, $currency, $trxId)
     {
@@ -126,6 +127,19 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
 
             if ($response->successful()) {
                 session()->put('cancel_tnx', $trxId);
+
+                // Check for Sandbox Mode
+                $isSandbox = $response->json('data.metadata.sandbox_mode') === true
+                    || $response->json('data.transaction.status') === 'sandbox'
+                    || str_contains(strtolower((string) $response->json('message')), 'sandbox');
+
+                if ($isSandbox) {
+                    Log::info("MarzPay Sandbox Deposit auto-completed for TRX #{$trxId}");
+                    Transaction::completeTransaction($trxId);
+                    notifyEvs('success', __('Deposit Successful (Sandbox Mode)'));
+                    return route('status.success', ['trx_id' => $trxId]);
+                }
+
                 return route('status.callback', [
                     'gateway' => 'marzpay',
                     'trx'     => $trxId,
@@ -194,11 +208,21 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
 
         $response = $this->request('post', '/send-money', $payload);
 
-        if (! $response->successful()) {
-            $msg = $response->json('message') ?? 'MarzPay withdrawal request failed (HTTP '.$response->status().').';
-            Log::error('MarzPay Withdrawal Error', ['response' => $response->json()]);
-            throw new Exception($msg);
+        if ($response->successful()) {
+            $isSandbox = $response->json('data.metadata.sandbox_mode') === true
+                || $response->json('data.transaction.status') === 'sandbox'
+                || str_contains(strtolower((string) $response->json('message')), 'sandbox');
+
+            if ($isSandbox) {
+                Log::info("MarzPay Sandbox Withdrawal auto-completed for TRX #{$trxId}");
+                Transaction::completeTransaction($trxId);
+            }
+            return;
         }
+
+        $msg = $response->json('message') ?? 'MarzPay withdrawal request failed (HTTP '.$response->status().').';
+        Log::error('MarzPay Withdrawal Error', ['response' => $response->json()]);
+        throw new Exception($msg);
     }
 
     /**
