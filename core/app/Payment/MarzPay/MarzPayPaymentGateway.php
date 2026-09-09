@@ -85,13 +85,13 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
         return Http::withBasicAuth($this->apiKey, $this->apiSecret)
             ->acceptJson()
             ->contentType('application/json')
+            ->connectTimeout(15)
             ->timeout(30)
             ->{$method}($url, $payload);
     }
 
     /**
      * Initiate a deposit via MarzPay.
-     * Supports both direct Mobile Money prompt (when phone provided) and Hosted Payment Link checkout.
      */
     public function deposit($amount, $currency, $trxId)
     {
@@ -99,7 +99,7 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
         $reference = (string) Str::uuid();
         $callbackUrl = route('ipn.handle', ['gateway' => 'marzpay']);
 
-        // Check if user has phone number for direct USSD prompt
+        // Check if user has a phone number
         $user = auth()->user();
         $userPhone = request('credentials.phone_number') ?? request('phone') ?? $user?->phone;
         $formattedPhone = $this->formatPhone($userPhone, $country);
@@ -131,9 +131,13 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
                     'trx'     => $trxId,
                 ]);
             }
+
+            $errorMsg = $response->json('message') ?? 'MarzPay collection failed (HTTP '.$response->status().')';
+            Log::error('MarzPay Direct Collection Error', ['response' => $response->json(), 'status' => $response->status()]);
+            throw new Exception($errorMsg);
         }
 
-        // 2. Otherwise create Hosted Payment Link / Card Checkout
+        // 2. Otherwise create Hosted Payment Link
         $linkPayload = [
             'title'        => setting('site_title', 'ReexPay').' Deposit',
             'description'  => 'Deposit for Transaction #'.$trxId,
@@ -154,28 +158,8 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
             return $response->json('data.payment_link.url');
         }
 
-        // Fallback: Card checkout redirect
-        $cardPayload = [
-            'amount'       => (float) $amount,
-            'method'       => 'card',
-            'reference'    => $reference,
-            'country'      => $country,
-            'description'  => 'Deposit #'.$trxId,
-            'callback_url' => $callbackUrl,
-            'metadata'     => [
-                ['trx_id' => $trxId],
-            ],
-        ];
-
-        $cardResponse = $this->request('post', '/collect-money', $cardPayload);
-
-        if ($cardResponse->successful() && $cardResponse->json('data.redirect_url')) {
-            session()->put('cancel_tnx', $trxId);
-            return $cardResponse->json('data.redirect_url');
-        }
-
-        $errorMsg = $response->json('message') ?? $cardResponse->json('message') ?? 'MarzPay could not initiate payment request.';
-        Log::error('MarzPay Deposit Error', ['response' => $response->json() ?? $cardResponse->json()]);
+        $errorMsg = $response->json('message') ?? 'MarzPay could not initiate payment request (HTTP '.$response->status().').';
+        Log::error('MarzPay Payment Link Error', ['response' => $response->json(), 'status' => $response->status()]);
         throw new Exception($errorMsg);
     }
 
@@ -211,7 +195,7 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
         $response = $this->request('post', '/send-money', $payload);
 
         if (! $response->successful()) {
-            $msg = $response->json('message') ?? 'MarzPay withdrawal request failed.';
+            $msg = $response->json('message') ?? 'MarzPay withdrawal request failed (HTTP '.$response->status().').';
             Log::error('MarzPay Withdrawal Error', ['response' => $response->json()]);
             throw new Exception($msg);
         }
