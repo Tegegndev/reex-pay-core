@@ -132,11 +132,15 @@
                 $('#mobile-money-credentials').html('');
 
                 // Check for Mobile Money automatic gateway
-                const isMobileMoney = selectedMethod.payment_gateway && (
-                    selectedMethod.payment_gateway.code === 'marzpay' || 
-                    selectedMethod.method_code.includes('marzpay') ||
-                    selectedMethod.name.toLowerCase().includes('mobile money')
-                );
+                const methodCode = (selectedMethod.method_code || '').toLowerCase();
+                const methodName = (selectedMethod.name || '').toLowerCase();
+                const gatewayCode = (selectedMethod.payment_gateway?.code || '').toLowerCase();
+
+                const isMobileMoney = methodCode.includes('marzpay') || 
+                                      gatewayCode.includes('marzpay') || 
+                                      methodName.includes('mobile money') ||
+                                      methodName.includes('mtn') ||
+                                      methodName.includes('airtel');
 
                 if (isMobileMoney) {
                     $('#mobile-money-credentials').html(`

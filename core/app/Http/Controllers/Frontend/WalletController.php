@@ -79,6 +79,7 @@ class WalletController extends Controller
 
         // Fetch supported payment methods based on the wallet's currency
         $paymentMethods = $wallet->supportedPaymentMethods($wallet->name)
+            ->load('paymentGateway')
             ->makeHidden(['fields', 'receive_payment_details', 'status', 'created_at', 'updated_at'])
             ->toArray();
 
