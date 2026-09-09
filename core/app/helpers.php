@@ -172,14 +172,9 @@ if (! function_exists('getJsonData')) {
 if (! function_exists('siteCurrency')) {
     function siteCurrency($type = 'code')
     {
-        // Reyco Pay Solutions uses UGX (Ugandan Shilling) as default
-        $reycoCurrency = [
-            'code' => 'UGX',
-            'symbol' => 'UGX',
-            'name' => 'Ugandan Shilling'
-        ];
-        
-        return $reycoCurrency[$type] ?? null;
+        $defaultCurrency = app(\App\Services\CurrencyService::class)->getDefaultCurrency();
+
+        return $defaultCurrency[$type] ?? null;
     }
 }
 
@@ -192,13 +187,12 @@ if (! function_exists('siteCurrency')) {
 if (! function_exists('getSymbol')) {
     function getSymbol($currencyCode): ?string
     {
-        // Reyco Pay Solutions uses UGX (Ugandan Shilling) for all currencies
-        // This prevents database errors and ensures consistent UGX display
         try {
-            return 'UGX';
+            $currency = app(\App\Services\CurrencyService::class)->getCurrencyByCode($currencyCode);
+
+            return $currency?->symbol ?? $currencyCode;
         } catch (\Exception $e) {
-            // Fallback to prevent Laravel errors
-            return 'UGX';
+            return (string) $currencyCode;
         }
     }
 }
@@ -486,11 +480,11 @@ if (! function_exists('getAdminMenuByCode')) {
 }
 
 if (! function_exists('formatCurrency')) {
-    function formatCurrency(float $amount): string
+    function formatCurrency(float $amount, ?string $currencyCode = null): string
     {
-        $symbol = 'UGX'; // Reyco Pay Solutions uses Ugandan Shilling
+        $symbol = $currencyCode ? getSymbol($currencyCode) : siteCurrency('symbol');
 
-        return $symbol.number_format($amount, 2);
+        return ($symbol ?? '$').number_format($amount, 2);
     }
 }
 

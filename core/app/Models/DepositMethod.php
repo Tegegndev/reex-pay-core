@@ -59,8 +59,10 @@ class DepositMethod extends Model
     public function scopeActive($query)
     {
         return $query->where('status', true)
-            ->where('currency', 'UGX')
-            ->whereHas('paymentGateway', fn ($gatewayQuery) => $gatewayQuery->where('code', 'marzpay')->where('status', true));
+            ->where(function ($q) {
+                $q->where('type', 'manual')
+                    ->orWhereHas('paymentGateway', fn ($gatewayQuery) => $gatewayQuery->where('status', true));
+            });
     }
 
     public function scopeGetByCode($query, $code)

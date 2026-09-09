@@ -153,7 +153,7 @@ class User extends Authenticatable
     {
         return $this->wallets()
             ->with(['currency.roles'])
-            ->whereHas('currency', fn ($query) => $query->where('code', 'UGX')->where('status', true))
+            ->whereHas('currency', fn ($query) => $query->where('status', true))
             ->active($role)
             ->get();
     }
@@ -177,7 +177,6 @@ class User extends Authenticatable
     public function availableCurrenciesForCreateWallet()
     {
         return Currency::whereNotIn('id', $this->wallets->pluck('currency_id'))
-            ->where('code', 'UGX')
             ->where('status', true)
             ->get();
     }

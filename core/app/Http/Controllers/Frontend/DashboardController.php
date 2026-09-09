@@ -93,7 +93,7 @@ class DashboardController extends Controller
 
             $stats[] = [
                 'title'       => $trxType->label(),
-                'value'       => $formattedValue ?: getSymbol('UGX').'0',
+                'value'       => $formattedValue ?: (siteCurrency('symbol') ?? '$').'0',
                 'icon'        => $trxType->icon(),
                 'color_class' => $trxType->kebabCase(),
                 'link'        => route('user.transaction.index'),
@@ -171,7 +171,7 @@ class DashboardController extends Controller
         // Map the deposits and withdrawals to the provided day order.
         $deposits = collect($dayOrder)->map(function (string $day) use ($transactions) {
             $data     = $transactions->where('trx_type', TrxType::DEPOSIT)->where('day', $day);
-            $currency = $data->first()?->currency ?? 'UGX';
+            $currency = $data->first()?->currency ?? siteCurrency('code');
 
             return [
                 'day'           => $day,
@@ -183,7 +183,7 @@ class DashboardController extends Controller
 
         $withdrawals = collect($dayOrder)->map(function (string $day) use ($transactions) {
             $data     = $transactions->where('trx_type', TrxType::WITHDRAW)->where('day', $day);
-            $currency = $data->first()?->currency ?? 'UGX';
+            $currency = $data->first()?->currency ?? siteCurrency('code');
 
             return [
                 'day'                    => $day,
@@ -215,6 +215,6 @@ class DashboardController extends Controller
             ->map(fn ($row) => getSymbol($row->currency).number_format($row->total, 2))
             ->implode(', ');
 
-        return $total ?: getSymbol('UGX').'0';
+        return $total ?: (siteCurrency('symbol') ?? '$').'0';
     }
 }

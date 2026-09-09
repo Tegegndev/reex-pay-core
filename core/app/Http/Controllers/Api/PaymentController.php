@@ -29,7 +29,7 @@ class PaymentController extends Controller
         $isSandbox = $environment->isSandbox();
 
         // Validate currency existence and consistency.
-        if (! CurrencyModel::where('code', $validated['currency_code'])->where('status', true)->where('code', 'UGX')->exists()) {
+        if (! CurrencyModel::where('code', $validated['currency_code'])->where('status', true)->exists()) {
             return response()->json(['error' => 'Invalid currency code.'], 422);
         }
 

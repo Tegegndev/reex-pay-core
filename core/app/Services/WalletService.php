@@ -51,7 +51,7 @@ class WalletService
      */
     public function createWalletForCurrency(User $user, int $currencyId): ?Wallet
     {
-        $currency = Currency::where('id', $currencyId)->where('code', 'UGX')->where('status', true)->firstOrFail();
+        $currency = Currency::where('id', $currencyId)->where('status', true)->firstOrFail();
 
         return ! $this->userHasWalletWithCurrency($user, $currencyId) ? $this->createWallet($user, $currency) : null;
     }

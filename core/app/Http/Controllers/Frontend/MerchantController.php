@@ -247,7 +247,7 @@ class MerchantController extends Controller
         $currencyCode = $validated['currency'];
 
         // Currency checks
-        if (! Currency::where('code', $currencyCode)->where('status', true)->where('code', 'UGX')->exists()) {
+        if (! Currency::where('code', $currencyCode)->where('status', true)->exists()) {
             notifyEvs('error', __('Invalid currency code.'));
 
             return back();
@@ -268,7 +268,7 @@ class MerchantController extends Controller
         $userId         = auth()->id();
         $merchantWallet = Wallet::getWalletByUserId($userId, $currencyCode);
         if (! $merchantWallet) {
-            notifyEvs('error', __('An active UGX wallet is required to create a payment link.'));
+            notifyEvs('error', __('An active :currency wallet is required to create a payment link.', ['currency' => $currencyCode]));
 
             return back();
         }

@@ -35,9 +35,7 @@ class WithdrawAccountController extends Controller
                 ->where('user_id', auth()->id())
                 ->whereHas('withdrawMethod', function ($query) use ($withdrawWallet) {
                     $query->where('currency', $withdrawWallet->currency->code)
-                        ->where('currency', 'UGX')
-                        ->where('status', true)
-                        ->whereHas('paymentGateway', fn ($gatewayQuery) => $gatewayQuery->where('code', 'marzpay')->where('status', true));
+                        ->where('status', true);
                 })
                 ->get();
 
@@ -60,8 +58,6 @@ class WithdrawAccountController extends Controller
 
         $withdrawMethod = WithdrawMethod::active()
             ->whereKey($validated['method_id'])
-            ->where('currency', 'UGX')
-            ->whereHas('paymentGateway', fn ($query) => $query->where('code', 'marzpay')->where('status', true))
             ->firstOrFail();
 
         $credentials = collect($withdrawMethod->fields)->map(function ($field) use ($validated) {

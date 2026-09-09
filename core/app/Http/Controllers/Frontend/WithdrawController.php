@@ -49,7 +49,7 @@ class WithdrawController extends Controller
         $wallet = auth()->user()->wallets()
             ->whereKey($validated['wallet_id'])
             ->where('status', true)
-            ->whereHas('currency', fn ($query) => $query->where('code', 'UGX'))
+            ->whereHas('currency', fn ($query) => $query->where('status', true))
             ->firstOrFail();
 
         $amount = $validated['amount'];

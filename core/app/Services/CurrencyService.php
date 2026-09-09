@@ -19,50 +19,46 @@ class CurrencyService
     {
         try {
             return Cache::remember(self::DEFAULT_CURRENCY_CACHE_KEY, now()->addDay(), function () {
-                $currency = Currency::where('default', true)->first(['code', 'symbol']);
-                return $currency ? $currency->toArray() : ['code' => 'UGX', 'symbol' => 'UGX'];
+                $currency = Currency::where('default', true)->where('status', true)->first(['code', 'symbol'])
+                    ?? Currency::where('status', true)->first(['code', 'symbol']);
+                return $currency ? $currency->toArray() : ['code' => 'USD', 'symbol' => '$'];
             });
         } catch (\Exception $e) {
-            // Fallback to prevent Laravel errors - Reyco Pay Solutions default
-            return ['code' => 'UGX', 'symbol' => 'UGX'];
+            return ['code' => 'USD', 'symbol' => '$'];
         }
     }
 
     public function exists($currencyCode): bool
     {
         try {
-            return Currency::where('code', $currencyCode)->exists();
+            return Currency::where('code', $currencyCode)->where('status', true)->exists();
         } catch (\Exception $e) {
-            // Reyco Pay Solutions - assume currency exists to prevent errors
-            return true;
+            return false;
         }
     }
 
     /**
      * Get a list of all active currencies, cached.
-     * Reyco Pay Solutions - returns UGX as fallback if database unavailable.
      */
     public function getAllCurrencies()
     {
         try {
             return Cache::remember(self::ALL_CURRENCIES_CACHE_KEY, now()->addDay(), function () {
-                return Currency::where('code', 'UGX')->where('status', true)->get();
+                return Currency::where('status', true)->get();
             });
         } catch (\Exception $e) {
-            // Return Reyco Pay Solutions default currency if database unavailable
-            return collect([new Currency(['code' => 'UGX', 'symbol' => 'UGX', 'name' => 'Ugandan Shilling', 'status' => true])]);
+            return collect([new Currency(['code' => 'USD', 'symbol' => '$', 'name' => 'US Dollar', 'status' => true])]);
         }
     }
 
-    public function getCurrencyByCode($code): Currency
+    public function getCurrencyByCode($code): ?Currency
     {
         try {
             return Cache::remember("currency_by_code_{$code}", now()->addDay(), function () use ($code) {
-                return Currency::where('code', $code)->first();
+                return Currency::where('code', $code)->where('status', true)->first();
             });
         } catch (\Exception $e) {
-            // Reyco Pay Solutions - return UGX as fallback to prevent Laravel errors
-            return new Currency(['code' => 'UGX', 'symbol' => 'UGX', 'name' => 'Ugandan Shilling', 'status' => true]);
+            return Currency::where('code', $code)->first();
         }
     }
 

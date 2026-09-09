@@ -37,7 +37,7 @@ class PaymentGateway extends Model
 
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', true)->where('code', 'marzpay');
+        return $query->where('status', true);
     }
 
     /**

@@ -37,11 +37,12 @@ class Currency extends Model
      */
     public static function getDefault(): ?Currency
     {
-        return static::where('code', 'UGX')->where('status', true)->first()
+        return static::where('default', true)->where('status', true)->first()
+            ?? static::where('status', true)->first()
             ?? new self([
-                'code' => 'UGX',
-                'symbol' => 'UGX',
-                'name' => 'Ugandan Shilling',
+                'code' => 'USD',
+                'symbol' => '$',
+                'name' => 'US Dollar',
                 'exchange_rate' => 1,
                 'default' => true,
                 'status' => true,
@@ -55,8 +56,7 @@ class Currency extends Model
 
     public static function autoWallets()
     {
-        return static::where('code', 'UGX')
-            ->where('status', true)
+        return static::where('status', true)
             ->where(function ($query) {
                 $query->where('auto_wallet', true)->orWhere('default', true);
             })

@@ -46,12 +46,10 @@ class PaymentService
             $wallet = WalletModel::whereKey($walletId)
                 ->where('user_id', auth()->id())
                 ->where('status', true)
-                ->whereHas('currency', fn ($query) => $query->where('code', 'UGX')->where('status', true))
+                ->whereHas('currency', fn ($query) => $query->where('status', true))
                 ->firstOrFail();
             $depositMethod = DepositMethod::active()
                 ->whereKey($paymentMethodId)
-                ->where('currency', 'UGX')
-                ->whereHas('paymentGateway', fn ($query) => $query->where('code', 'marzpay')->where('status', true))
                 ->firstOrFail();
 
             if ($amount <= 0) {
@@ -119,8 +117,8 @@ class PaymentService
                 throw new NotifyErrorException(__('Invalid withdrawal account.'));
             }
 
-            if (! $withdrawMethod->status || $withdrawMethod->currency !== 'UGX' || $withdrawMethod->paymentGateway?->code !== 'marzpay' || ! $withdrawMethod->paymentGateway?->status) {
-                throw new NotifyErrorException(__('MarzPay UGX withdrawals are not available.'));
+            if (! $withdrawMethod->status || ($withdrawMethod->type === MethodType::AUTOMATIC && ! $withdrawMethod->paymentGateway?->status)) {
+                throw new NotifyErrorException(__('Withdrawal method is not available.'));
             }
 
             if ($amount <= 0) {

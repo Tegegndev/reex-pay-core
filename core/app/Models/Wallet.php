@@ -49,7 +49,7 @@ class Wallet extends Model
         }
 
         return $query->where('status', true)
-            ->whereHas('currency', fn ($currencyQuery) => $currencyQuery->where('code', 'UGX')->where('status', true));
+            ->whereHas('currency', fn ($currencyQuery) => $currencyQuery->where('status', true));
     }
 
     public function scope($query)

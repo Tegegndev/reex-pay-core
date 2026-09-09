@@ -81,7 +81,7 @@ class MerchantPaymentReceiveController extends Controller
 
         $paymentMethods = DepositMethod::active()
             ->where('type', MethodType::AUTOMATIC)
-            ->where('currency', 'UGX')
+            ->where('currency', $transaction->payable_currency)
             ->get();
 
         // Add sandbox-specific transaction marking
@@ -160,7 +160,7 @@ class MerchantPaymentReceiveController extends Controller
         // 7. Load available automatic deposit methods based on transaction currency
         $paymentMethods = DepositMethod::active()
             ->where('type', MethodType::AUTOMATIC)
-            ->where('currency', 'UGX')
+            ->where('currency', $transaction->payable_currency)
             ->get();
 
         $trxId = $transaction->trx_id;
@@ -628,7 +628,7 @@ class MerchantPaymentReceiveController extends Controller
         }
 
         if (! $userWallet) {
-            return $this->handleFailure($merchantTransaction, __('A compatible UGX wallet is required.'));
+            return $this->handleFailure($merchantTransaction, __('A compatible wallet is required.'));
         }
 
         // Detect environment mode
