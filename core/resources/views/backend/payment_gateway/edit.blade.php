@@ -1,1 +1,92 @@
-<form method="POST" action="{{ route('admin.payment.gateway.update', ['gateway' => $paymentGateway->id]) }}"      enctype="multipart/form-data">    @method('PUT')    @csrf    <div class="row">        <div class="col-md-12 mb-3">            <label class="form-label" for="name">{{ __('Gateway Name') }}</label>            <input class="form-control" name="name" id="name" value="{{ $paymentGateway->name }}" type="text" required>        </div>    </div>        <div class="row">        @foreach($paymentGateway->credentials as $key => $value)            @php                $label     = ucwords(str_replace('_', ' ', $key));				$isBoolean = $value === '0' || $value === '1';				$checked   = $value === '1';            @endphp                        @if($isBoolean)                <div class="col-md-12 mb-3 mt-2">                    <div class="card">                        <div                            class="form-check form-switch card-body p-2 border rounded d-flex align-items-center">                            {{-- hidden fallback so unchecked → "0" --}}                            <input                                type="hidden"                                name="credentials[{{ $key }}]"                                value="0">                                                        <label                                class="form-check-label flex-grow-1"                                for="{{ $key }}">                                {{ __($label) }}                            </label>                                                        <input                                class="form-check-input coevs-switch me-2 flex-shrink-0"                                type="checkbox"                                role="switch"                                name="credentials[{{ $key }}]"                                id="{{ $key }}"                                value="1"                                @checked($checked)>                        </div>                    </div>                </div>            @else                <div class="col-md-12 mb-3">                    <label                        class="form-label"                        for="{{ $key }}">                        {{ __($label) }}                    </label>                    <input                        class="form-control"                        type="text"                        name="credentials[{{ $key }}]"                        id="{{ $key }}"                        value="{{ $value }}"                        required>                </div>            @endif        @endforeach    </div>    @if($paymentGateway->ipn)        <div class="row">            <div class="col-md-12 mb-3">                <label class="form-label" for="ipn_url">{{ __('Webhook URL') }}</label>                <span class="badge bg-success modal-tooltip" data-coreui-toggle="tooltip" data-coreui-placement="top"                      title="{{ __('Set this webhook in :gateway’s Developer Webhooks section, or refer to :gateway documentation for where to set the URL.', ['gateway' => ucfirst($paymentGateway->name)]) }}">            <i class="fa-light fa-info-circle"></i> {{ __('Info') }}        </span>                <div class="input-group">                    <input class="form-control" id="ipn_url" value="{{ url('ipn/'.$paymentGateway->code) }}" type="text"                           readonly required>                    <span class="btn btn-outline-info copyNow modal-tooltip" data-clipboard-target="#ipn_url"                          data-coreui-placement="top" data-coreui-toggle="tooltip" title="{{ __('Copy Webhook URL') }}">                        <i class="fa-solid fa-copy"></i>                    </span>                </div>            </div>        </div>    @endif    <div class="row">        <div class="col-md-6 mb-3 mt-2">            <div class="card">                <div class="form-check form-switch card-body p-2 border rounded d-flex align-items-center">                    <label class="form-check-label flex-grow-1" for="status">{{ __('Status') }}</label>                    <input class="form-check-input coevs-switch me-2 flex-shrink-0" type="checkbox" role="switch"                           name="status" id="status" value="1" @checked($paymentGateway->status)>                </div>            </div>        </div>    </div>    <div class="mt-3">        <button class="btn btn-primary" type="submit">            <x-icon name="check" height="20"/>            {{ __('Update Now') }}        </button>    </div></form>
+<form method="POST" action="{{ route('admin.payment.gateway.update', ['gateway' => $paymentGateway->id]) }}" enctype="multipart/form-data">
+    @method('PUT')
+    @csrf
+    <div class="row">
+        <div class="col-md-12 mb-3">
+            <label class="form-label" for="name">{{ __('Gateway Name') }}</label>
+            <input class="form-control" name="name" id="name" value="{{ $paymentGateway->name }}" type="text" required>
+        </div>
+    </div>
+
+    <div class="row">
+        @foreach($paymentGateway->credentials as $key => $value)
+            @php
+                $label     = ucwords(str_replace('_', ' ', $key));
+                $isBoolean = $value === '0' || $value === '1';
+                $checked   = $value === '1';
+                $isOptional = str_contains($key, 'webhook') || str_contains($key, 'optional');
+            @endphp
+
+            @if($isBoolean)
+                <div class="col-md-12 mb-3 mt-2">
+                    <div class="card">
+                        <div class="form-check form-switch card-body p-2 border rounded d-flex align-items-center">
+                            {{-- hidden fallback so unchecked → "0" --}}
+                            <input type="hidden" name="credentials[{{ $key }}]" value="0">
+                            <label class="form-check-label flex-grow-1" for="{{ $key }}">
+                                {{ __($label) }}
+                            </label>
+                            <input class="form-check-input coevs-switch me-2 flex-shrink-0"
+                                   type="checkbox"
+                                   role="switch"
+                                   name="credentials[{{ $key }}]"
+                                   id="{{ $key }}"
+                                   value="1"
+                                   @checked($checked)>
+                        </div>
+                    </div>
+                </div>
+            @else
+                <div class="col-md-12 mb-3">
+                    <label class="form-label" for="{{ $key }}">
+                        {{ __($label) }} @if($isOptional) <span class="text-muted small">({{ __('Optional') }})</span> @endif
+                    </label>
+                    <input class="form-control"
+                           type="text"
+                           name="credentials[{{ $key }}]"
+                           id="{{ $key }}"
+                           value="{{ $value }}"
+                           @if(!$isOptional) required @endif>
+                </div>
+            @endif
+        @endforeach
+    </div>
+
+    @if($paymentGateway->ipn)
+        <div class="row">
+            <div class="col-md-12 mb-3">
+                <label class="form-label" for="ipn_url">{{ __('Webhook / IPN URL') }}</label>
+                <span class="badge bg-success modal-tooltip" data-coreui-toggle="tooltip" data-coreui-placement="top"
+                      title="{{ __('Copy this Webhook URL into :gateway’s developer settings/dashboard.', ['gateway' => ucfirst($paymentGateway->name)]) }}">
+                    <i class="fa-light fa-info-circle"></i> {{ __('Info') }}
+                </span>
+                <div class="input-group">
+                    <input class="form-control" id="ipn_url" value="{{ url('ipn/'.$paymentGateway->code) }}" type="text" readonly required>
+                    <span class="btn btn-outline-info copyNow modal-tooltip" data-clipboard-target="#ipn_url"
+                          data-coreui-placement="top" data-coreui-toggle="tooltip" title="{{ __('Copy Webhook URL') }}">
+                        <i class="fa-solid fa-copy"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <div class="row">
+        <div class="col-md-6 mb-3 mt-2">
+            <div class="card">
+                <div class="form-check form-switch card-body p-2 border rounded d-flex align-items-center">
+                    <label class="form-check-label flex-grow-1" for="status">{{ __('Status') }}</label>
+                    <input class="form-check-input coevs-switch me-2 flex-shrink-0" type="checkbox" role="switch"
+                           name="status" id="status" value="1" @checked($paymentGateway->status)>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <button class="btn btn-primary" type="submit">
+            <x-icon name="check" height="20"/>
+            {{ __('Update Now') }}
+        </button>
+    </div>
+</form>
