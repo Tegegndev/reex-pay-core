@@ -2,11 +2,9 @@
 
 namespace App\Payment\MarzPay;
 
-use App\Enums\TrxType;
 use App\Models\PaymentGateway;
 use App\Payment\PaymentGateway as PaymentGatewayInterface;
 use Exception;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -17,828 +15,286 @@ class MarzPayPaymentGateway implements PaymentGatewayInterface
 {
     private const BASE_URL = 'https://wallet.wearemarz.com/api/v1';
 
-    private array $credentials;
+    protected array $credentials;
+
+    protected string $apiKey;
+
+    protected string $apiSecret;
+
+    protected ?string $webhookSecret;
+
+    protected string $defaultCountry;
 
     public function __construct()
     {
         $this->credentials = PaymentGateway::getCredentials('marzpay');
-
-        if (
-            empty($this->credentials['api_key']) ||
-            empty($this->credentials['api_secret'])
-        ) {
-            throw new Exception(
-                'MarzPay payment credentials are not configured by the administrator.'
-            );
-        }
+        $this->apiKey = (string) ($this->credentials['api_key'] ?? '');
+        $this->apiSecret = (string) ($this->credentials['api_secret'] ?? '');
+        $this->webhookSecret = ! empty($this->credentials['webhook_secret']) ? (string) $this->credentials['webhook_secret'] : null;
+        $this->defaultCountry = strtoupper((string) ($this->credentials['country'] ?? 'UG'));
     }
 
     /**
-     * Create a MarzPay mobile-money collection.
+     * Resolve the ISO country code based on currency or request/configuration.
+     */
+    protected function resolveCountry(string $currency): string
+    {
+        return match (strtoupper($currency)) {
+            'KES'   => 'KE',
+            'RWF'   => 'RW',
+            'CDF'   => 'CD',
+            'UGX'   => 'UG',
+            default => $this->defaultCountry ?: 'UG',
+        };
+    }
+
+    /**
+     * Format phone number to E.164 without leading zeros or spaces.
+     */
+    protected function formatPhone(?string $phone, string $country): ?string
+    {
+        if (! $phone) {
+            return null;
+        }
+
+        $clean = preg_replace('/[^\d+]/', '', $phone);
+        if (str_starts_with($clean, '+')) {
+            return $clean;
+        }
+
+        return match ($country) {
+            'UG' => str_starts_with($clean, '0') ? '+256'.substr($clean, 1) : (str_starts_with($clean, '256') ? '+'.$clean : '+256'.$clean),
+            'KE' => str_starts_with($clean, '0') ? '+254'.substr($clean, 1) : (str_starts_with($clean, '254') ? '+'.$clean : '+254'.$clean),
+            'RW' => str_starts_with($clean, '0') ? '+250'.substr($clean, 1) : (str_starts_with($clean, '250') ? '+'.$clean : '+250'.$clean),
+            'CD' => str_starts_with($clean, '0') ? '+243'.substr($clean, 1) : (str_starts_with($clean, '243') ? '+'.$clean : '+243'.$clean),
+            default => '+'.$clean,
+        };
+    }
+
+    /**
+     * Make an authenticated HTTP request to the MarzPay API.
+     */
+    protected function request(string $method, string $endpoint, array $payload = [])
+    {
+        if (empty($this->apiKey) || empty($this->apiSecret)) {
+            throw new Exception('MarzPay API credentials (api_key, api_secret) are not configured.');
+        }
+
+        $url = self::BASE_URL.'/'.ltrim($endpoint, '/');
+
+        return Http::withBasicAuth($this->apiKey, $this->apiSecret)
+            ->acceptJson()
+            ->contentType('application/json')
+            ->timeout(30)
+            ->{$method}($url, $payload);
+    }
+
+    /**
+     * Initiate a deposit via MarzPay.
+     * Supports both direct Mobile Money prompt (when phone provided) and Hosted Payment Link checkout.
      */
     public function deposit($amount, $currency, $trxId)
     {
-        $country = strtoupper(
-            (string) ($this->credentials['country'] ?? 'UG')
-        );
+        $country = $this->resolveCountry($currency);
+        $reference = (string) Str::uuid();
+        $callbackUrl = route('ipn.handle', ['gateway' => 'marzpay']);
 
-        $rawPhone = auth()->user()?->phone;
-        $phone = $this->formatPhone($rawPhone, $country);
+        // Check if user has phone number for direct USSD prompt
+        $user = auth()->user();
+        $userPhone = request('credentials.phone_number') ?? request('phone') ?? $user?->phone;
+        $formattedPhone = $this->formatPhone($userPhone, $country);
 
-        if (! $phone) {
-            throw new Exception(
-                "Add a valid {$country} mobile-money phone number before depositing."
-            );
+        // Map transaction in cache for reference lookup
+        cache()->put("marzpay_reference_{$reference}", $trxId, now()->addDays(2));
+
+        // 1. If phone number is available, initiate direct mobile collection
+        if ($formattedPhone) {
+            $payload = [
+                'amount'       => (float) $amount,
+                'phone_number' => $formattedPhone,
+                'country'      => $country,
+                'currency'     => strtoupper((string) $currency),
+                'reference'    => $reference,
+                'description'  => 'Deposit for Order #'.$trxId,
+                'callback_url' => $callbackUrl,
+                'metadata'     => [
+                    ['trx_id' => $trxId],
+                ],
+            ];
+
+            $response = $this->request('post', '/collect-money', $payload);
+
+            if ($response->successful()) {
+                session()->put('cancel_tnx', $trxId);
+                return route('status.callback', [
+                    'gateway' => 'marzpay',
+                    'trx'     => $trxId,
+                ]);
+            }
         }
 
-        $callbackUrl = $this->callbackUrl();
-
-        /*
-         * MarzPay requires a unique UUID v4 reference.
-         */
-        $reference = (string) Str::uuid();
-
-        $payload = [
+        // 2. Otherwise create Hosted Payment Link / Card Checkout
+        $linkPayload = [
+            'title'        => setting('site_title', 'ReexPay').' Deposit',
+            'description'  => 'Deposit for Transaction #'.$trxId,
             'amount'       => (float) $amount,
-            'phone_number' => $phone,
-            'country'      => $country,
             'currency'     => strtoupper((string) $currency),
-            'reference'    => $reference,
-            'description'  => 'MarzPay wallet deposit',
+            'country'      => $country,
             'callback_url' => $callbackUrl,
+            'return_url'   => route('status.success', ['trx_id' => $trxId]),
             'metadata'     => [
-                [
-                    'digikash_transaction' => $trxId,
-                ],
+                ['trx_id' => $trxId],
             ],
         ];
 
-        $response = $this->request(
-            'post',
-            '/collect-money',
-            $payload
-        );
+        $response = $this->request('post', '/payment-links', $linkPayload);
 
-        /*
-         * Safe debug logging.
-         *
-         * Never log API credentials or the customer's phone number.
-         */
-        Log::info('MARZPAY COLLECTION DEBUG', [
-            'http_status' => $response->status(),
-            'api_status' => $response->json('status'),
-            'message' => $response->json('message'),
-
-            'transaction_status' => $response->json(
-                'data.transaction.status'
-            ),
-
-            'provider' => $response->json(
-                'data.collection.provider'
-            ),
-
-            'mode' => $response->json(
-                'data.collection.mode'
-            ),
-
-            'provider_transaction_id' => $response->json(
-                'data.collection.provider_transaction_id'
-            ),
-
-            'reference' => $reference,
-            'local_transaction' => $trxId,
-
-            'country' => $country,
-            'currency' => strtoupper((string) $currency),
-
-            'callback_host' => parse_url(
-                $callbackUrl,
-                PHP_URL_HOST
-            ),
-        ]);
-
-        if (! $this->accepted($response)) {
-            throw new Exception(
-                'MarzPay deposit request failed: ' .
-                (
-                    $response->json('message')
-                    ?? 'unknown provider error'
-                )
-            );
+        if ($response->successful() && $response->json('data.payment_link.url')) {
+            session()->put('cancel_tnx', $trxId);
+            return $response->json('data.payment_link.url');
         }
 
-        /*
-         * Save the provider reference so the webhook can still
-         * find our local transaction if metadata is unavailable.
-         */
-        cache()->put(
-            "marzpay_reference_{$reference}",
-            $trxId,
-            now()->addDay()
-        );
-
-        /*
-         * MarzPay triggers the mobile-money prompt itself.
-         * This URL only returns the user to our local status page.
-         */
-        return route('status.callback', [
-            'gateway' => 'marzpay',
-            'trx' => $trxId,
-        ]);
-    }
-
-    /**
-     * Create a MarzPay mobile-money disbursement.
-     */
-    public function withdraw(
-        $amount,
-        $currency,
-        $trxId,
-        $withdrawCredential
-    ) {
-        $country = strtoupper(
-            (string) ($this->credentials['country'] ?? 'UG')
-        );
-
-        $phone = $this->formatPhone(
-            $withdrawCredential,
-            $country
-        );
-
-        if (! $phone) {
-            throw new Exception(
-                "A valid {$country} mobile-money number is required for withdrawal."
-            );
-        }
-
-        $callbackUrl = $this->callbackUrl();
-
-        $reference = (string) Str::uuid();
-
-        $payload = [
+        // Fallback: Card checkout redirect
+        $cardPayload = [
             'amount'       => (float) $amount,
-            'phone_number' => $phone,
-            'country'      => $country,
-            'currency'     => strtoupper((string) $currency),
+            'method'       => 'card',
             'reference'    => $reference,
-            'description'  => 'MarzPay wallet withdrawal',
+            'country'      => $country,
+            'description'  => 'Deposit #'.$trxId,
             'callback_url' => $callbackUrl,
             'metadata'     => [
-                [
-                    'digikash_transaction' => $trxId,
-                ],
+                ['trx_id' => $trxId],
             ],
         ];
 
-        $response = $this->request(
-            'post',
-            '/send-money',
-            $payload
-        );
+        $cardResponse = $this->request('post', '/collect-money', $cardPayload);
 
-        Log::info('MARZPAY DISBURSEMENT DEBUG', [
-            'http_status' => $response->status(),
-            'api_status' => $response->json('status'),
-            'message' => $response->json('message'),
-
-            'transaction_status' => $response->json(
-                'data.transaction.status'
-            ),
-
-            'provider' => $response->json(
-                'data.disbursement.provider'
-            ),
-
-            'mode' => $response->json(
-                'data.disbursement.mode'
-            ),
-
-            'provider_transaction_id' => $response->json(
-                'data.disbursement.provider_transaction_id'
-            ),
-
-            'reference' => $reference,
-            'local_transaction' => $trxId,
-
-            'country' => $country,
-            'currency' => strtoupper((string) $currency),
-
-            'callback_host' => parse_url(
-                $callbackUrl,
-                PHP_URL_HOST
-            ),
-        ]);
-
-        if (! $this->accepted($response)) {
-            throw new Exception(
-                'MarzPay withdrawal request failed: ' .
-                (
-                    $response->json('message')
-                    ?? 'unknown provider error'
-                )
-            );
+        if ($cardResponse->successful() && $cardResponse->json('data.redirect_url')) {
+            session()->put('cancel_tnx', $trxId);
+            return $cardResponse->json('data.redirect_url');
         }
 
-        cache()->put(
-            "marzpay_reference_{$reference}",
-            $trxId,
-            now()->addDay()
-        );
+        $errorMsg = $response->json('message') ?? $cardResponse->json('message') ?? 'MarzPay could not initiate payment request.';
+        Log::error('MarzPay Deposit Error', ['response' => $response->json() ?? $cardResponse->json()]);
+        throw new Exception($errorMsg);
     }
 
     /**
-     * Handle MarzPay webhook/IPN.
+     * Process a withdrawal (payout / disbursement).
      */
-    public function handleIPN(Request $request): JsonResponse
+    public function withdraw($amount, $currency, $trxId, $withdrawCredential)
     {
-        /*
-         * MarzPay webhook signing is optional.
-         *
-         * If webhook signing is disabled, unsigned webhooks
-         * are accepted.
-         */
-        if (! $this->validSignature($request)) {
-            return response()->json([
-                'error' => 'Invalid webhook signature.',
-            ], 401);
+        $country = $this->resolveCountry($currency);
+        $reference = (string) Str::uuid();
+        $formattedPhone = $this->formatPhone($withdrawCredential, $country);
+        $callbackUrl = route('ipn.handle', ['gateway' => 'marzpay']);
+
+        if (! $formattedPhone) {
+            throw new Exception("A valid mobile money phone number is required for {$country} withdrawal.");
         }
 
-        $payload = $request->json()->all();
+        cache()->put("marzpay_reference_{$reference}", $trxId, now()->addDays(2));
 
-        $reference = data_get(
-            $payload,
-            'transaction.reference'
-        );
-
-        $localTrxId =
-            data_get(
-                $payload,
-                'metadata.0.digikash_transaction'
-            )
-            ??
-            data_get(
-                $payload,
-                'metadata.0.reexpay_transaction'
-            )
-            ??
-            (
-                $reference
-                    ? cache()->get(
-                        "marzpay_reference_{$reference}"
-                    )
-                    : null
-            );
-
-        $status = strtolower(
-            (string) data_get(
-                $payload,
-                'transaction.status'
-            )
-        );
-
-        $event = strtolower(
-            (string) data_get(
-                $payload,
-                'event_type'
-            )
-        );
-
-        /*
-         * Safe webhook debug information.
-         */
-        Log::info('MARZPAY WEBHOOK DEBUG', [
-            'reference' => $reference,
-            'local_transaction' => $localTrxId,
-            'event' => $event,
-            'status' => $status,
-
-            'transaction_currency' => data_get(
-                $payload,
-                'transaction.amount.currency'
-            ),
-
-            'collection_amount' => data_get(
-                $payload,
-                'collection.amount.raw'
-            ),
-
-            'disbursement_amount' => data_get(
-                $payload,
-                'disbursement.amount.raw'
-            ),
-
-            'collection_provider' => data_get(
-                $payload,
-                'collection.provider'
-            ),
-
-            'collection_provider_transaction_id' => data_get(
-                $payload,
-                'collection.provider_transaction_id'
-            ),
-
-            'disbursement_provider_transaction_id' => data_get(
-                $payload,
-                'disbursement.provider_transaction_id'
-            ),
-        ]);
-
-        if (! $localTrxId) {
-            Log::warning(
-                'MarzPay webhook could not map transaction.',
-                [
-                    'reference' => $reference,
-                ]
-            );
-
-            return response()->json([
-                'status' => 'ignored',
-            ]);
-        }
-
-        $transaction = Transaction::findTransaction(
-            $localTrxId
-        );
-
-        if (! $transaction) {
-            Log::warning(
-                'MarzPay webhook referenced an unknown transaction.',
-                [
-                    'trx_id' => $localTrxId,
-                ]
-            );
-
-            return response()->json([
-                'status' => 'ignored',
-            ]);
-        }
-
-        if ($transaction->status?->value !== 'pending') {
-            return response()->json([
-                'status' => 'already_processed',
-            ]);
-        }
-
-        $eventType = null;
-
-        if (str_starts_with($event, 'collection.')) {
-            $eventType = 'collection';
-        } elseif (str_starts_with($event, 'disbursement.')) {
-            $eventType = 'disbursement';
-        }
-
-        $expectedType = null;
-
-        if ($transaction->trx_type === TrxType::DEPOSIT) {
-            $expectedType = 'collection';
-        } elseif ($transaction->trx_type === TrxType::WITHDRAW) {
-            $expectedType = 'disbursement';
-        }
-
-        $providerAmount = data_get(
-            $payload,
-            $eventType === 'collection'
-                ? 'collection.amount.raw'
-                : 'disbursement.amount.raw'
-        );
-
-        $providerCurrency = data_get(
-            $payload,
-            'transaction.amount.currency'
-        );
-
-        /*
-         * Prevent a webhook for another transaction from
-         * settling the wrong local transaction.
-         */
-        if (
-            $eventType !== $expectedType ||
-            strtoupper((string) $providerCurrency)
-                !== strtoupper((string) $transaction->currency) ||
-            (float) $providerAmount
-                !== (float) $transaction->payable_amount
-        ) {
-            Log::warning(
-                'MarzPay webhook settlement mismatch.',
-                [
-                    'trx_id' => $localTrxId,
-                    'event' => $event,
-
-                    'provider_amount' => $providerAmount,
-                    'expected_amount' => $transaction->payable_amount,
-
-                    'provider_currency' => $providerCurrency,
-                    'expected_currency' => $transaction->currency,
-                ]
-            );
-
-            return response()->json([
-                'status' => 'ignored',
-            ], 422);
-        }
-
-        /*
-         * Successful payment.
-         */
-        if (
-            in_array(
-                $status,
-                ['completed', 'successful'],
-                true
-            )
-            ||
-            str_ends_with(
-                $event,
-                '.completed'
-            )
-        ) {
-            Transaction::completeTransaction(
-                $localTrxId
-            );
-        }
-
-        /*
-         * Failed payment.
-         */
-        elseif (
-            in_array(
-                $status,
-                ['failed', 'cancelled'],
-                true
-            )
-            ||
-            str_ends_with(
-                $event,
-                '.failed'
-            )
-            ||
-            str_ends_with(
-                $event,
-                '.cancelled'
-            )
-        ) {
-            Transaction::failTransaction(
-                $localTrxId
-            );
-        }
-
-        if ($reference) {
-            cache()->forget(
-                "marzpay_reference_{$reference}"
-            );
-        }
-
-        return response()->json([
-            'status' => 'received',
-        ]);
-    }
-
-    /**
-     * Send authenticated request to MarzPay.
-     */
-    private function request(
-        string $method,
-        string $path,
-        array $payload
-    ) {
-        return Http::withBasicAuth(
-            $this->credentials['api_key'],
-            $this->credentials['api_secret']
-        )
-            ->asForm()
-            ->acceptJson()
-            ->timeout(20)
-            ->$method(
-                self::BASE_URL . $path,
-                $payload
-            );
-    }
-
-    /**
-     * Make sure MarzPay can reach our webhook.
-     */
-    private function callbackUrl(): string
-    {
-        $url = route(
-            'ipn.handle',
-            [
-                'gateway' => 'marzpay',
-            ]
-        );
-
-        $host = strtolower(
-            (string) parse_url(
-                $url,
-                PHP_URL_HOST
-            )
-        );
-
-        if (
-            ! $host ||
-            in_array(
-                $host,
-                [
-                    'localhost',
-                    '127.0.0.1',
-                    '::1',
-                ],
-                true
-            ) ||
-            (
-                filter_var(
-                    $host,
-                    FILTER_VALIDATE_IP
-                ) &&
-                ! filter_var(
-                    $host,
-                    FILTER_VALIDATE_IP,
-                    FILTER_FLAG_NO_PRIV_RANGE |
-                    FILTER_FLAG_NO_RES_RANGE
-                )
-            )
-        ) {
-            throw new Exception(
-                'MarzPay requires a public HTTPS callback URL. ' .
-                'Set APP_URL to https://reexpaylimited.com before using live payments.'
-            );
-        }
-
-        if (
-            parse_url(
-                $url,
-                PHP_URL_SCHEME
-            ) !== 'https'
-        ) {
-            throw new Exception(
-                'MarzPay live payments require an HTTPS callback URL.'
-            );
-        }
-
-        return $url;
-    }
-
-    /**
-     * Determine whether MarzPay accepted the request.
-     */
-    private function accepted($response): bool
-    {
-        return $response->successful()
-            && $response->json('status') === 'success'
-            && is_array(
-                $response->json(
-                    'data.transaction'
-                )
-            );
-    }
-
-    /**
-     * Validate MarzPay webhook signature.
-     *
-     * Webhook signing is optional.
-     *
-     * If no webhook secret exists, unsigned webhooks
-     * are accepted.
-     */
-    private function validSignature(
-        Request $request
-    ): bool {
-        $secret = trim(
-            (string) (
-                $this->credentials['webhook_secret']
-                ?? ''
-            )
-        );
-
-        /*
-         * Webhook signing is disabled.
-         *
-         * Do NOT require signature headers when the
-         * webhook secret is empty.
-         */
-        if ($secret === '') {
-            Log::info(
-                'MARZPAY WEBHOOK: signature verification disabled.'
-            );
-
-            return true;
-        }
-
-        /*
-         * A secret exists, so MarzPay signing is enabled.
-         * Signature headers are now required.
-         */
-        $timestamp = trim(
-            (string) $request->header(
-                'X-MarzPay-Timestamp',
-                ''
-            )
-        );
-
-        $signature = trim(
-            (string) $request->header(
-                'X-MarzPay-Signature',
-                ''
-            )
-        );
-
-        if (
-            $timestamp === '' ||
-            $signature === ''
-        ) {
-            Log::warning(
-                'MarzPay webhook signature headers are missing while webhook signing is enabled.'
-            );
-
-            return false;
-        }
-
-        preg_match(
-            '/(?:^|,)v1=([a-f0-9]+)(?:,|$)/i',
-            $signature,
-            $matches
-        );
-
-        if (! isset($matches[1])) {
-            Log::warning(
-                'MarzPay webhook signature format is invalid.'
-            );
-
-            return false;
-        }
-
-        if (
-            ! ctype_digit($timestamp)
-        ) {
-            Log::warning(
-                'MarzPay webhook timestamp is invalid.'
-            );
-
-            return false;
-        }
-
-        /*
-         * Reject replayed or expired webhooks.
-         */
-        if (
-            abs(
-                time() - (int) $timestamp
-            ) > 300
-        ) {
-            Log::warning(
-                'MarzPay webhook timestamp is outside the allowed window.'
-            );
-
-            return false;
-        }
-
-        /*
-         * MarzPay signature:
-         *
-         * HMAC-SHA256(
-         *     timestamp + "." + raw_request_body,
-         *     webhook_secret
-         * )
-         */
-        $expected = hash_hmac(
-            'sha256',
-            $timestamp .
-            '.' .
-            $request->getContent(),
-            $secret
-        );
-
-        if (
-            ! hash_equals(
-                $expected,
-                $matches[1]
-            )
-        ) {
-            Log::warning(
-                'MarzPay webhook signature verification failed.'
-            );
-
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Normalize a mobile-money phone number.
-     *
-     * Accepted examples:
-     *
-     * 0771234567
-     * 0771 234 567
-     * 0771-234-567
-     * 256771234567
-     * +256771234567
-     *
-     * Returned format:
-     *
-     * +256771234567
-     */
-    private function formatPhone(
-        ?string $phone,
-        string $country
-    ): ?string {
-        if (! $phone) {
-            return null;
-        }
-
-        /*
-         * Remove spaces, brackets, hyphens and other
-         * formatting while keeping a possible leading +.
-         */
-        $phone = preg_replace(
-            '/[^0-9+]/',
-            '',
-            trim($phone)
-        );
-
-        if (! $phone) {
-            return null;
-        }
-
-        $prefixes = [
-            'UG' => '256',
-            'KE' => '254',
-            'RW' => '250',
-            'CD' => '243',
+        $payload = [
+            'amount'       => (float) $amount,
+            'phone_number' => $formattedPhone,
+            'country'      => $country,
+            'currency'     => strtoupper((string) $currency),
+            'reference'    => $reference,
+            'description'  => 'Withdrawal payout #'.$trxId,
+            'callback_url' => $callbackUrl,
+            'metadata'     => [
+                ['trx_id' => $trxId],
+            ],
         ];
 
-        $prefix = $prefixes[$country] ?? null;
+        $response = $this->request('post', '/send-money', $payload);
 
-        if (! $prefix) {
-            return null;
+        if (! $response->successful()) {
+            $msg = $response->json('message') ?? 'MarzPay withdrawal request failed.';
+            Log::error('MarzPay Withdrawal Error', ['response' => $response->json()]);
+            throw new Exception($msg);
+        }
+    }
+
+    /**
+     * Handle incoming MarzPay IPN / Webhooks.
+     */
+    public function handleIPN(Request $request)
+    {
+        // 1. Verify webhook signature if secret configured
+        $signature = $request->header('X-MarzPay-Signature');
+        if ($this->webhookSecret && $signature) {
+            $computed = hash_hmac('sha256', $request->getContent(), $this->webhookSecret);
+            if (! hash_equals($computed, $signature)) {
+                Log::warning('MarzPay IPN: Invalid signature', ['received' => $signature, 'computed' => $computed]);
+                return response()->json(['error' => 'Invalid signature'], 403);
+            }
         }
 
-        /*
-         * Remove a leading + first.
-         */
-        if (str_starts_with($phone, '+')) {
-            $phone = substr(
-                $phone,
-                1
-            );
+        $eventType = $request->input('event_type') ?? $request->input('data.event_type');
+        $payload = $request->all();
+        Log::info("MarzPay IPN Received: {$eventType}", $payload);
+
+        // Extract transaction ID from metadata or reference cache
+        $trxId = $this->extractTrxId($request);
+
+        if (! $trxId) {
+            Log::warning('MarzPay IPN: Could not resolve transaction ID', $payload);
+            return response()->json(['status' => 'ignored', 'reason' => 'Transaction ID not found'], 200);
         }
 
-        /*
-         * Local format:
-         *
-         * 0771234567
-         *
-         * becomes:
-         *
-         * 256771234567
-         */
-        if (str_starts_with($phone, '0')) {
-            $phone = $prefix .
-                substr(
-                    $phone,
-                    1
-                );
+        switch ($eventType) {
+            case 'collection.completed':
+            case 'collection.success':
+            case 'payment.success':
+            case 'disbursement.completed':
+            case 'disbursement.success':
+            case 'withdrawal.completed':
+                Transaction::completeTransaction($trxId);
+                break;
+
+            case 'collection.failed':
+            case 'disbursement.failed':
+            case 'withdrawal.failed':
+                $failureReason = $request->input('transaction.failure_reason') ?? $request->input('message') ?? 'MarzPay transaction failed';
+                Transaction::cancelTransaction($trxId, $failureReason, true);
+                break;
+
+            default:
+                Log::info("MarzPay IPN: Event {$eventType} unhandled or pending.");
+                break;
         }
 
-        /*
-         * Already international:
-         *
-         * 256771234567
-         */
-        elseif (
-            str_starts_with(
-                $phone,
-                $prefix
-            )
-        ) {
-            // Already correct country prefix.
-        } else {
-            return null;
+        return response()->json(['status' => 'success']);
+    }
+
+    /**
+     * Helper to extract local trx_id from webhook payload.
+     */
+    protected function extractTrxId(Request $request): ?string
+    {
+        // Check top-level metadata array
+        $metadata = $request->input('metadata') ?? $request->input('data.metadata') ?? [];
+        if (is_array($metadata)) {
+            foreach ($metadata as $item) {
+                if (is_array($item)) {
+                    if (isset($item['trx_id'])) return (string) $item['trx_id'];
+                    if (isset($item['digikash_transaction'])) return (string) $item['digikash_transaction'];
+                    if (isset($item['transaction_id'])) return (string) $item['transaction_id'];
+                }
+            }
         }
 
-        /*
-         * Final MarzPay format:
-         *
-         * +256 + 9 local digits
-         */
-        $formatted = '+' . $phone;
+        // Check reference in transaction object
+        $reference = $request->input('transaction.reference')
+            ?? $request->input('reference')
+            ?? $request->input('data.transaction.reference');
 
-        $pattern = '/^\+' .
-            preg_quote(
-                $prefix,
-                '/'
-            ) .
-            '[0-9]{9}$/';
-
-        if (
-            ! preg_match(
-                $pattern,
-                $formatted
-            )
-        ) {
-            return null;
+        if ($reference && cache()->has("marzpay_reference_{$reference}")) {
+            return (string) cache()->get("marzpay_reference_{$reference}");
         }
 
-        return $formatted;
+        return null;
     }
 }

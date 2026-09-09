@@ -59,24 +59,14 @@ class PaymentGatewayController extends BaseController
 
         $paymentGateway->update($validated);
 
-        if (
-            $paymentGateway->code === 'marzpay'
-            && $validated['status']
-            && ! empty($validated['credentials']['api_key'])
-            && ! empty($validated['credentials']['api_secret'])
-            && ! empty($validated['credentials']['webhook_secret'])
-        ) {
-            $paymentGateway->depositMethods()
-                ->where('currency', 'UGX')
-                ->update([
-                    'status' => true,
-                ]);
+        if ($validated['status']) {
+            $paymentGateway->depositMethods()->update([
+                'status' => true,
+            ]);
 
-            $paymentGateway->withdrawMethods()
-                ->where('currency', 'UGX')
-                ->update([
-                    'status' => true,
-                ]);
+            $paymentGateway->withdrawMethods()->update([
+                'status' => true,
+            ]);
         }
 
         notifyEvs(
