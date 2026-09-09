@@ -1,0 +1,1 @@
+@props(['status'])<span class="badge bg-{{ $status->color() }} mt-1 small px-2 py-1">    {{ strtoupper($status->label()) }}</span>

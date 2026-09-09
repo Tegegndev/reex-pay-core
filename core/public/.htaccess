@@ -1,0 +1,39 @@
+<IfModule mod_rewrite.c>
+    Options -MultiViews -Indexes
+
+    RewriteEngine On
+
+    # Serve /images/... from /storage/images/...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^images/(.*)$ storage/images/$1 [L,NC]
+
+    # Serve /files/... from /storage/files/...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^files/(.*)$ storage/files/$1 [L,NC]
+
+    # Default storage access rule (keep for direct /storage/ access)
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^storage/(.*)$ storage/$1 [L,NC]
+
+    # Laravel front controller
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+
+    # Security: Deny .env and sensitive files
+    <Files .env>
+        Order allow,deny
+        Deny from all
+    </Files>
+    <Files laravel.log>
+        Order allow,deny
+        Deny from all
+    </Files>
+    <FilesMatch "\.(env|json|lock|git|md|ini|log|yml|yaml|xml|dist|example)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>

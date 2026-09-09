@@ -1,0 +1,1 @@
+@extends('backend.user.manage')@section('user_manage_content')    @include('backend.user.manage.partials._user_stats')    @include('backend.user.manage.partials._user_transactions_chart')@endsection

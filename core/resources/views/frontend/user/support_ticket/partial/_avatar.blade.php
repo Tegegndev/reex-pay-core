@@ -1,0 +1,1 @@
+<div class="col-auto">    <span class="avatar" style="background-image: url({{ asset($avatar) }})"></span></div>

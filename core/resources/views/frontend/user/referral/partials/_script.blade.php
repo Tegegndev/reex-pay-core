@@ -1,0 +1,1 @@
+<script>    "use strict";    $(".referral-tree").on("click", "a", function (e) {        e.preventDefault();        const $children = $(this).next("ul");        if ($children.length) {            $children.toggle();        }    });</script>

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Exec(Get-ChildItem)",
+      "Exec(php artisan)",
+      "Exec(php)",
+      "Exec(Select-Object)"
+    ]
+  }
+}

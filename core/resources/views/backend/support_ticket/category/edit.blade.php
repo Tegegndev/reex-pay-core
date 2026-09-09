@@ -1,0 +1,1 @@
+<form action="{{ route('admin.support-ticket.category.update', $category->id) }}" method="POST">    @csrf    @method('PUT')    @include('backend.support_ticket.category.partial._form', ['category' => $category])</form>

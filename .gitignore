@@ -1,0 +1,39 @@
+# Dependencies & Build artifacts
+node_modules/
+vendor/
+core/node_modules/
+core/vendor/
+core/public/storage
+core/public/hot
+core/public/build
+.phpunit.cache
+core/.phpunit.cache
+.phpunit.result.cache
+core/.phpunit.result.cache
+
+# Environment & credentials
+.env
+.env.backup
+.env.production
+core/.env
+core/.env.backup
+core/.env.production
+core/storage/*.key
+auth.json
+core/auth.json
+
+# IDE / Editor configs
+.idea/
+.vscode/
+.fleet/
+.phpactor.json
+
+# Logs & temporary files
+*.log
+core/storage/logs/*.log
+npm-debug.log
+yarn-error.log
+.DS_Store
+*.tmp
+*.bak
+*~

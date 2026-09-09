@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* REEXPAY custom colors */
+:root {
+    --reexpay-primary: #147d55;
+    --reexpay-secondary: #b6d85b;
+    --reexpay-accent: #d7f36b;
+    --reexpay-dark: #172b25;
+    --reexpay-light: #f4f7f2;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom button styles */
+.btn-reexpay {
+    background: linear-gradient(135deg, var(--reexpay-primary), var(--reexpay-secondary));
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-reexpay:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+}
+
+/* Custom card styles */
+.card-reyco {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+/* Gradient text */
+.text-gradient {
+    background: linear-gradient(135deg, var(--reyco-primary), var(--reyco-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}

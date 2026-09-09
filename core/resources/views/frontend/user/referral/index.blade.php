@@ -1,0 +1,1 @@
+@extends('frontend.layouts.user.index')@section('title', __('Invite and Earn'))@section('content')<div class="row">    @include('frontend.user.referral.partials.referral_card')    @include('frontend.user.referral.partials.referral_table')</div>@endsection@push('scripts')    @include('frontend.user.referral.partials._script')@endpush

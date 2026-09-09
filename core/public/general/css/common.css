@@ -1,0 +1,103 @@
+.cursor-pointer {
+    cursor: pointer;
+}
+.daterangepicker td.active,
+.daterangepicker td.active:hover,
+.daterangepicker .ranges li.active {
+    background-color: #4663EE !important;
+    color: #fff !important;
+}
+
+.daterangepicker .ranges li:hover {
+    background-color: rgba(13, 110, 253, 0.1); /* Optional hover effect */
+    color: #4663EE;
+}
+/*---------------------------------------
+    ## Transaction or other info  summery color
+---------------------------------------*/
+
+.deposit, .card-topup, .add-balance, .receive-money , .success-svg {
+    background: linear-gradient(135deg, #DFF6DD, #A8E6A2);
+    color: #2E7D32;
+}
+
+.add-balance  {
+    background: linear-gradient(135deg, #E6F4D8, #BDE3A6);
+    color: #558B2F;
+}
+
+.receive-payment , .active-svg {
+    background: linear-gradient(135deg, #E2F3E1, #B7E3B5);
+    color: #388E3C;
+}
+
+/* Money Transfer */
+.send-money, .request-money, .subtract-balance {
+    background: linear-gradient(135deg, #FFE8D5, #FFC09F);
+    color: #E65100;
+}
+
+.request-money {
+    background: linear-gradient(135deg, #FFD6D6, #FFA5A5);
+    color: #D32F2F;
+}
+
+.subtract-balance , .danger-svg {
+    background: linear-gradient(135deg, #FFD9D9, #FFB3B3);
+    color: #D84315;
+}
+
+/* Payments */
+.payment, .exchange-money  {
+    background: linear-gradient(135deg, #E3F2FD, #A9D1F6);
+    color: #1565C0;
+}
+
+.payment , .info-svg {
+    background: linear-gradient(135deg, #DDE3FC, #A8B3F0);
+    color: #3949AB;
+}
+
+/* Rewards & Referrals */
+.referral-reward, .reward {
+    background: linear-gradient(135deg, #FFF3E0, #FFD899);
+    color: #FFA000;
+}
+
+.reward {
+    background: linear-gradient(135deg, #FFF8E1, #FFE6A0);
+    color: #FF8F00;
+}
+
+/* Withdrawals */
+.withdraw, .card-withdraw {
+    background: linear-gradient(135deg, #FCE4EC, #F8A8C0);
+    color: #C2185B;
+}
+
+/* Miscellaneous */
+.tickets {
+    background: linear-gradient(135deg, #E3E3E3, #CFCFCF);
+    color: #444;
+}
+
+.referrals , .total {
+    background: linear-gradient(135deg, #E1E8F5, #B3C2E1);
+    color: #1E3A8A;
+}
+
+.merchant {
+    background: linear-gradient(135deg, #ECEEF5, #B6BCE0);
+    color: #1A237E;
+}
+
+.merchant-pending {
+    background: linear-gradient(135deg, #FAE3E3, #F2A5A5);
+    color: #B71C1C;
+}
+.voucher {
+    background: linear-gradient(135deg, #F5F5DC 0%, #E6D3A3 100%);
+    color: #8D6E63;
+}
+
+

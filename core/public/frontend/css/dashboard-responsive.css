@@ -1,0 +1,236 @@
+/*--------------------------------------------------
+    ## All responsive style
+---------------------------------------------------*/
+@media all and (max-width: 1199px) {
+	.referral-image {
+		display: none !important;
+	}
+	.history-table {
+		overflow-x: scroll;
+	}
+	.history-table .table-list {
+		width: 767px;
+	}
+}
+@media all and (max-width: 991px) {
+	.mt-neg-120 {
+		margin-top: -120px;
+	}
+
+	.text-white-small {
+		color: #fff;
+	}
+	.single-card-box-slider .btn {
+		width: 48%;
+	}
+	.walet-slider .owl-nav button {
+		color: #fff !important;
+	}
+	.single-card-box-slider {
+		margin-top: -120px;
+	}
+	.single-amount-card-area {
+		padding: 20px;
+		background: #fff;
+		border-radius: 16px;
+		padding-bottom: 0;
+		border: 1px solid var(--border-color);
+	}
+	.single-amount-card {
+		box-shadow: none !important;
+		padding-left: 0;
+		padding-right: 0;
+	}
+	.single-amount-card .media {
+		display: block;
+		text-align: center;
+	}
+	.single-amount-card a {
+		display: none;
+	}
+
+	.single-card-box-shadow {
+		background: #fff;
+		padding: 0;
+		border-radius: 16px;
+	}
+	.single-card-box-shadow .main-title {
+		border-bottom: 1px solid var(--border-color);
+		padding: 25px 30px;
+	}
+	.left-menu-box-card {
+		padding: 20px;
+	}
+	.sidebar-menu .left-menu-box li a {
+		padding: 0;
+	}
+
+	.quick-links-item {
+		font-size: 12px;
+		background: #F1F3FF;
+		padding: 3px 14px;
+		border-radius: 8px;
+		margin-bottom: 5px;
+		margin-right: 15px;
+		display: inline-block;
+	}
+
+	.quick-links-item:hover {
+		background: #dde0f5;
+		border-radius: 8px;
+	}
+	.quick-links-item svg {
+		margin-bottom: 7px;
+	}
+
+
+
+}
+@media all and (max-width: 767px) {
+	.stats-wrapper {
+		padding: 0;
+		border: none;
+		background-color: transparent;
+	}
+	.stat-column {
+		border: 1px solid var(--border-color);
+		border-radius: 0.5rem;
+		margin-bottom: 1rem;
+		padding: 1rem;
+		background: #fff;
+	}
+	.stat-label{
+		margin: 0;
+	}
+	.summery-row {
+		margin: 0;
+	}
+}
+@media all and (max-width: 575px) {
+	.single-amount-card h6 {
+		font-size: 18px;
+	}
+	.single-chart-inner .details .chart-down .btn {
+		width: 100%;
+	}
+	.notification-message {
+		font-size: 0.95rem;
+	}
+
+	.notification-header h5 {
+		font-size: 1.2rem;
+	}
+	.pagination-list li a {
+		height: 34px;
+		width: 34px;
+		line-height: 34px;
+		font-size: 12px;
+		border-radius: 4px;
+	}
+	.pagination-list li a.prev,
+	.pagination-list li a.next {
+		padding: 0 8px;
+		height: 34px;
+		line-height: 34px;
+	}
+	.pagination-list li + li {
+		margin-left: 3px;
+	}
+}
+@media all and (max-width: 360px) {
+	.single-chart-inner .details .chart-down .btn {
+		padding: 0 15px;
+	}
+	.single-chart-inner .details .chart-down a {
+		font-size: 14px;
+	}
+}
+@media (max-width: 576px) {
+	.notification-dropdown {
+		width: 95% !important;
+		left: 0 !important;
+		right: 0 !important;
+		margin: 0 auto;
+		font-size: 0.875rem;
+	}
+	.notification-dropdown .list-group-item {
+		padding: 0.75rem 1rem;
+	}
+	.notification-dropdown svg {
+		height: 30px;
+		width: 30px;
+	}
+	.card-title{
+		padding: 14px !important;
+	}
+
+	.login-card {
+		max-width: 350px;
+		padding: 1.5rem;
+	}
+
+	.login-card h4 {
+		font-size: 1.25rem;
+	}
+
+	.login-card .form-label {
+		font-size: 0.9rem;
+	}
+
+	.login-card .form-control {
+		font-size: 0.9rem;
+		padding: 0.5rem 0.75rem;
+	}
+
+	.login-card .mb-3 {
+		margin-bottom: 0.75rem !important;
+	}
+
+	.sm-mb-text{
+		font-size: 0.875rem !important;
+	}
+}
+
+@media (min-width: 992px) {
+	.navbar-area {
+		position: sticky;
+		top: 0;
+		z-index: 999;
+		background-color: #fff;
+	}
+	.fixed-wrapper {
+		display: flex;
+		height: calc(100vh - 78px);
+		overflow: hidden;
+	}
+
+	.sidebar {
+		overflow-y: auto;
+		padding-top: 30px;
+		height: 100%;
+		scrollbar-width: none; /* Firefox */
+		-ms-overflow-style: none; /* IE 10+ */
+	}
+
+	.sidebar::-webkit-scrollbar {
+		display: none; /* Chrome, Safari */
+	}
+
+	.main-content {
+		flex: 1;
+		overflow-y: auto;
+		padding-top: 30px;
+		height: 100%;
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+	}
+
+	.main-content::-webkit-scrollbar {
+		display: none;
+	}
+
+	.dashboard-sidebar,
+	.main-content {
+		scroll-behavior: smooth;
+	}
+}
